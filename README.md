@@ -1,7 +1,6 @@
 # Credit Risk Scoring
 
 A web application for credit risk assessment using a **LightGBM** model, with integrated **SHAP (SHapley Additive exPlanations)** to provide transparent explanations for loan approval and rejection decisions.
-
 ---
 
 ## Features
@@ -65,7 +64,8 @@ http://localhost:5000
 
 ## Data
 
-The training and test datasets are sourced from the **[Home Credit Default Risk](https://www.kaggle.com/competitions/home-credit-default-risk)** competition on Kaggle.
+The training and test datasets are sourced from the **[Home Credit Default Risk](https://www.kaggle.com/competitions/home-credit-default-risk)** competition on Kaggle. "Without using Bureau datasets "
+
 
 **20 input features:**
 
