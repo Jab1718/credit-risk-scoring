@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kết quả — Credit Risk Scoring</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy:   #0f1f3d;
+  --blue:   #1a56db;
+  --green:  #059669;
+  --red:    #dc2626;
+  --amber:  #d97706;
+  --bg:     #f0f4f8;
+  --surface:#ffffff;
+  --border: #dde3ed;
+  --text:   #1e293b;
+  --muted:  #64748b;
+  --light:  #e8edf5;
+  --mono:   'JetBrains Mono', monospace;
+  --sans:   'Outfit', sans-serif;
+  --shadow: 0 4px 24px rgba(15,31,61,.08);
+}
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.header { background: var(--navy); padding: 0 40px; height: 64px; display: flex; align-items: center; gap: 16px; box-shadow: 0 2px 20px rgba(0,0,0,.2); }
+.header-logo { font-size: 18px; font-weight: 700; color: #fff; }
+.header-logo span { color: #60a5fa; }
+.header-sub { font-size: 12px; color: #94a3b8; padding-left: 16px; border-left: 1px solid rgba(255,255,255,.15); }
+
+.page { max-width: 720px; margin: 0 auto; padding: 40px 24px 60px; }
+.page.wide { max-width: 1100px; }
+
+/* Result hero */
+.result-hero {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,.12);
+  margin-bottom: 20px;
+  animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes popIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+
+.result-top {
+  padding: 36px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.approve-bg { background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
+.reject-bg  { background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%); }
+.medium-bg  { background: linear-gradient(135deg, #78350f 0%, #92400e 100%); }
+
+.decision-left {}
+.decision-icon { font-size: 52px; margin-bottom: 12px; line-height: 1; }
+.decision-word { font-size: 36px; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+.decision-sub  { font-size: 14px; color: rgba(255,255,255,.6); margin-top: 4px; }
+
+.decision-right { text-align: right; }
+.prob-number { font-family: var(--mono); font-size: 56px; font-weight: 600; color: #fff; line-height: 1; }
+.prob-label  { font-size: 12px; color: rgba(255,255,255,.5); margin-top: 6px; text-transform: uppercase; letter-spacing: .1em; }
+
+.tier-strip { padding: 16px 40px; background: rgba(0,0,0,.2); display: flex; align-items: center; gap: 12px; }
+.tier-label { font-size: 12px; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .1em; }
+.tier-badge { font-family: var(--mono); font-size: 13px; font-weight: 600; color: #fff; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: 4px 14px; }
+
+/* Prob bar */
+.bar-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; box-shadow: var(--shadow); margin-bottom: 20px; animation: fadeIn .4s .1s ease both; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.bar-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px; }
+.bar-track { height: 10px; background: var(--light); border-radius: 99px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 99px; transition: width .8s cubic-bezier(.4,0,.2,1); }
+.bar-marks { display: flex; justify-content: space-between; margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.threshold-line { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--navy); border-radius: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   SHAP EXPLANATION CARD
+══════════════════════════════════════════════════════════════════ */
+.shap-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin-bottom: 20px;
+  animation: fadeIn .4s .15s ease both;
+}
+.shap-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 28px;
+  background: linear-gradient(135deg, #0f1f3d, #1e3a5f);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.shap-header-icon { font-size: 26px; flex-shrink: 0; }
+.shap-header-title { font-size: 15px; font-weight: 600; color: #fff; }
+.shap-header-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.shap-base-badge {
+  margin-left: auto;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #93c5fd;
+  white-space: nowrap;
+}
+
+.shap-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+@media(max-width:640px) { .shap-body { grid-template-columns: 1fr; } }
+
+.shap-col { padding: 20px 24px; }
+.shap-col:first-child { border-right: 1px solid var(--border); }
+.shap-col-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid;
+}
+.shap-col-title.risk { color: #b91c1c; border-color: #fca5a5; }
+.shap-col-title.safe { color: #047857; border-color: #6ee7b7; }
+
+.shap-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 4px 8px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+.shap-row:last-child { margin-bottom: 0; }
+
+.shap-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+  grid-column: 1;
+}
+.shap-fval {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: right;
+  grid-column: 2;
+  align-self: start;
+}
+.shap-bar-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.shap-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--light);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.shap-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  min-width: 4px;
+  transition: width .8s cubic-bezier(.4,0,.2,1);
+}
+.shap-bar-fill.risk { background: linear-gradient(90deg, #fca5a5, #ef4444); }
+.shap-bar-fill.safe { background: linear-gradient(90deg, #6ee7b7, #10b981); }
+.shap-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 44px;
+  text-align: right;
+}
+.shap-val.risk { color: var(--red); }
+.shap-val.safe { color: var(--green); }
+
+.shap-footer {
+  padding: 12px 28px;
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* CSV table */
+.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); animation: fadeIn .4s .15s ease both; margin-bottom: 20px; }
+.table-head-bar { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.table-head-bar h3 { font-size: 15px; font-weight: 600; }
+.table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { background: #f8fafc; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8fafc; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 5px; letter-spacing: .04em; }
+.badge-approve { background: #d1fae5; color: #065f46; }
+.badge-reject  { background: #fee2e2; color: #991b1b; }
+.badge-low    { background: #d1fae5; color: #065f46; }
+.badge-medium { background: #fef3c7; color: #92400e; }
+.badge-high   { background: #fee2e2; color: #991b1b; }
+
+/* CSV accordion */
+.acc-row td { cursor: pointer; user-select: none; }
+.acc-row:hover td { background: #f0f7ff !important; }
+.acc-detail { display: none; background: #f8fafc; }
+.acc-detail.open { display: table-row; }
+.acc-detail td { padding: 0 !important; border-bottom: 2px solid var(--blue) !important; }
+.acc-inner { padding: 16px 20px; }
+
+/* Credit metrics grid inside accordion */
+.acc-metrics-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 14px; }
+.acc-metric { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.acc-metric-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.acc-metric-value { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--text); }
+.acc-metric-hint  { font-size: 10px; color: #94a3b8; margin-top: 3px; }
+.acc-chevron { display: inline-block; transition: transform .2s; margin-left: 6px; font-style: normal; color: var(--muted); }
+.acc-row.expanded .acc-chevron { transform: rotate(90deg); }
+@media(max-width:700px) { .acc-metrics-grid{grid-template-columns:repeat(3,1fr)} }
+
+/* SHAP mini (inside accordion) */
+.shap-mini { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.shap-mini-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--navy); margin-bottom: 12px; }
+.shap-mini-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media(max-width:600px){ .shap-mini-cols{ grid-template-columns:1fr; } }
+.shap-mini-col-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 2px solid; }
+.shap-mini-col-title.risk { color: #b91c1c; border-color: #fca5a5; }
+.shap-mini-col-title.safe { color: #047857; border-color: #6ee7b7; }
+.shap-mini-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.shap-mini-row:last-child { margin-bottom: 0; }
+.shap-mini-label { font-size: 10px; color: var(--text); flex: 1; font-family: var(--sans); }
+.shap-mini-track { width: 60px; height: 5px; background: var(--light); border-radius: 99px; overflow: hidden; flex-shrink: 0; }
+.shap-mini-fill { height: 100%; border-radius: 99px; }
+.shap-mini-fill.risk { background: #ef4444; }
+.shap-mini-fill.safe { background: #10b981; }
+.shap-mini-pct { font-family: var(--mono); font-size: 9px; font-weight: 700; min-width: 34px; text-align: right; }
+.shap-mini-pct.risk { color: var(--red); }
+.shap-mini-pct.safe { color: var(--green); }
+
+/* threshold badge in header */
+.threshold-badge { margin-left: auto; font-family: var(--mono); font-size: 12px; color: #93c5fd; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); border-radius: 20px; padding: 3px 12px; }
+.back-btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; background: var(--navy); color: #fff; border-radius: 9px; text-decoration: none; font-size: 14px; font-weight: 600; transition: all .2s; margin-bottom: 20px; }
+.back-btn:hover { background: #162944; transform: translateY(-1px); }
+
+/* Summary stats */
+.stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; animation: fadeIn .4s .05s ease both; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; box-shadow: var(--shadow); }
+.stat-num { font-family: var(--mono); font-size: 32px; font-weight: 600; line-height: 1; }
+.stat-num.g { color: var(--green); }
+.stat-num.r { color: var(--red); }
+.stat-num.b { color: var(--blue); }
+.stat-lbl { font-size: 12px; color: var(--muted); margin-top: 6px; font-weight: 500; }
+
+/* Credit terms card */
+.credit-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); margin-bottom: 20px; animation: fadeIn .4s .2s ease both; }
+.credit-header { display: flex; align-items: center; gap: 14px; padding: 18px 28px; background: linear-gradient(135deg, #0f1f3d, #162944); }
+.credit-header-icon { font-size: 26px; }
+.credit-header-title { font-size: 15px; font-weight: 600; color: #fff; }
+.credit-header-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.credit-tier-badge { margin-left: auto; border-radius: 20px; padding: 5px 16px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tier-u-tien     { background: #d1fae5; color: #065f46; }
+.tier-tieu-chuan { background: #dbeafe; color: #1e40af; }
+.tier-than-trong { background: #fef3c7; color: #92400e; }
+.tier-tu-choi    { background: #fee2e2; color: #991b1b; }
+.credit-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--border); }
+.credit-metric { padding: 24px 22px; background: var(--surface); }
+.credit-metric.highlight { background: #f8faff; }
+.credit-metric-icon { font-size: 22px; margin-bottom: 10px; }
+.credit-metric-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 8px; }
+.credit-metric-value { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.rate-color { color: var(--blue); }
+.credit-unit { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+.credit-metric-hint { font-size: 11px; color: #94a3b8; margin-top: 6px; font-family: var(--mono); }
+.credit-formula { padding: 14px 28px; background: #f8fafc; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+.formula-label { font-weight: 600; color: var(--text); margin-right: 6px; }
+
+/* Loan compare banner */
+.loan-compare { display: flex; align-items: center; gap: 20px; padding: 18px 28px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+.loan-full    { background: #f0fdf4; }
+.loan-counter { background: #fffbeb; }
+.loan-reject  { background: #fef2f2; }
+.loan-compare-col { flex: 1; min-width: 140px; }
+.loan-compare-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 6px; }
+.loan-compare-val { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--text); }
+.counter-val { color: var(--amber); }
+.reject-val  { color: var(--red); }
+.loan-compare-arrow { font-size: 32px; flex-shrink: 0; }
+.loan-compare-diff { width: 100%; font-size: 12px; color: var(--amber); font-family: var(--mono); font-weight: 600; background: rgba(217,119,6,.08); border-radius: 6px; padding: 6px 12px; }
+@media(max-width:600px) { .result-top{flex-direction:column;text-align:center} .decision-right{text-align:center} .stats-row{grid-template-columns:1fr 1fr} .credit-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">Credit<span>Risk</span></div>
+  <div class="header-sub">Kết quả dự đoán</div>
+</div>
+
+<div class="page {% if table %}wide{% endif %}">
+  <a href="/" class="back-btn">← Dự đoán khách hàng khác</a>
+
+  {% if decision %}
+  <!-- ── SINGLE RESULT ── -->
+  <div class="result-hero">
+    <div class="result-top {% if decision == 'Approve' %}approve-bg{% elif risk == 'High' %}reject-bg{% else %}medium-bg{% endif %}">
+      <div class="decision-left">
+        <div class="decision-icon">{% if decision == 'Approve' %}✅{% else %}❌{% endif %}</div>
+        <div class="decision-word">{{ decision }}</div>
+        <div class="decision-sub">{% if decision == 'Approve' %}Hồ sơ được chấp thuận{% else %}Hồ sơ bị từ chối{% endif %}</div>
+      </div>
+      <div class="decision-right">
+        <div class="prob-number">{{ probability }}%</div>
+        <div class="prob-label">Xác suất vỡ nợ</div>
+      </div>
+    </div>
+    <div class="tier-strip">
+      <span class="tier-label">Mức độ rủi ro</span>
+      <span class="tier-badge">
+        {% if risk == 'Low' %}🟢 Thấp (Low){% elif risk == 'Medium' %}🟡 Trung bình (Medium){% else %}🔴 Cao (High){% endif %}
+      </span>
+      {% if threshold %}
+      <span style="margin-left:auto;font-size:12px;color:rgba(255,255,255,.5)">Ngưỡng từ chối: <strong style="color:#fff">{{ threshold }}%</strong></span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bar-card">
+    <div class="bar-title">Biểu đồ xác suất vỡ nợ</div>
+    <div class="bar-track">
+      <div class="bar-fill" id="bar-fill"
+           style="width:{{ probability }}%;background:{% if probability < 30 %}#059669{% elif probability < 60 %}#d97706{% else %}#dc2626{% endif %}"></div>
+    </div>
+    <div class="bar-marks">
+      <span>0% — An toàn</span>
+      <span>30% | 60%</span>
+      <span>100% — Rủi ro cao</span>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SHAP EXPLANATION — SINGLE PREDICTION
+  ════════════════════════════════════════════════════════════ -->
+  {% if shap_explain %}
+  <div class="shap-card">
+    <div class="shap-header">
+      <div class="shap-header-icon">🔍</div>
+      <div>
+        <div class="shap-header-title">Giải thích quyết định AI</div>
+        <div class="shap-header-sub">Phân tích SHAP — đóng góp của từng yếu tố vào xác suất vỡ nợ</div>
+      </div>
+      <div class="shap-base-badge">Base rate: {{ shap_explain.base_value }}%</div>
+    </div>
+
+    <div class="shap-body">
+      <!-- Risk factors (features tăng PD) -->
+      <div class="shap-col">
+        <div class="shap-col-title risk">⚠️ Yếu tố rủi ro — đẩy PD lên</div>
+        {% if shap_explain.risk_factors %}
+          {% for item in shap_explain.risk_factors %}
+          <div class="shap-row">
+            <div class="shap-label">{{ item.label }}</div>
+            <div class="shap-fval">giá trị = {{ item.feature_val }}</div>
+            <div class="shap-bar-row">
+              <div class="shap-bar-track">
+                <div class="shap-bar-fill risk shap-animated"
+                     data-width="{{ (item.shap_val / shap_explain.max_abs * 100) | round(1) }}"
+                     style="width:0%"></div>
+              </div>
+              <div class="shap-val risk">+{{ item.pct }}%</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="font-size:13px;color:var(--muted);font-style:italic">Không có yếu tố tăng rủi ro đáng kể.</div>
+        {% endif %}
+      </div>
+
+      <!-- Strengths (features giảm PD) -->
+      <div class="shap-col">
+        <div class="shap-col-title safe">✅ Điểm mạnh — kéo PD xuống</div>
+        {% if shap_explain.strengths %}
+          {% for item in shap_explain.strengths %}
+          <div class="shap-row">
+            <div class="shap-label">{{ item.label }}</div>
+            <div class="shap-fval">giá trị = {{ item.feature_val }}</div>
+            <div class="shap-bar-row">
+              <div class="shap-bar-track">
+                <div class="shap-bar-fill safe shap-animated"
+                     data-width="{{ (item.shap_val | abs / shap_explain.max_abs * 100) | round(1) }}"
+                     style="width:0%"></div>
+              </div>
+              <div class="shap-val safe">−{{ item.pct }}%</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="font-size:13px;color:var(--muted);font-style:italic">Không có điểm mạnh đáng kể.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="shap-footer">
+      💡 <strong style="color:var(--text)">Cách đọc:</strong>&nbsp;
+      Mỗi thanh thể hiện mức độ ảnh hưởng của feature đó đến xác suất vỡ nợ.
+      Giá trị SHAP dương → tăng PD (rủi ro hơn). Giá trị SHAP âm → giảm PD (an toàn hơn).
+      Base rate {{ shap_explain.base_value }}% là PD trung bình của tập huấn luyện.
+    </div>
+  </div>
+  {% endif %}
+  <!-- ════════════════════════════════════════════════════════════ -->
+
+
+  {% if credit_tier is defined %}
+  <div class="credit-card">
+    <div class="credit-header">
+      <div class="credit-header-icon">💳</div>
+      <div>
+        <div class="credit-header-title">Điều khoản tín dụng đề xuất</div>
+        <div class="credit-header-sub">EV-based · LGD = 45% · Ngưỡng từ chối: PD ≥ {{ pd_breakeven }}%</div>
+      </div>
+      {% set tier_class = {"Ưu tiên":"tier-u-tien","Tiêu chuẩn":"tier-tieu-chuan","Thận trọng":"tier-than-trong","Từ chối":"tier-tu-choi"} %}
+      <div class="credit-tier-badge {{ tier_class[credit_tier] if credit_tier in tier_class else '' }}">{{ credit_tier }}</div>
+    </div>
+
+    {% if requested_amount %}
+    <div class="loan-compare {% if offer_status == 'full' %}loan-full{% elif offer_status == 'counter' %}loan-counter{% else %}loan-reject{% endif %}">
+      <div class="loan-compare-col">
+        <div class="loan-compare-label">📋 Khoản vay yêu cầu</div>
+        <div class="loan-compare-val">${{ "{:,.0f}".format(requested_amount) }}</div>
+      </div>
+      <div class="loan-compare-arrow">
+        {% if offer_status == 'full' %}✅{% elif offer_status == 'counter' %}⚠️{% else %}❌{% endif %}
+      </div>
+      <div class="loan-compare-col">
+        <div class="loan-compare-label">
+          {% if offer_status == 'full' %}🎉 Được duyệt đầy đủ{% elif offer_status == 'counter' %}💡 Counter-offer đề xuất{% else %}🚫 Từ chối{% endif %}
+        </div>
+        <div class="loan-compare-val {% if offer_status == 'counter' %}counter-val{% elif offer_status == 'reject' %}reject-val{% endif %}">
+          {% if offer_status == 'full' %}${{ "{:,.0f}".format(requested_amount) }}
+          {% elif offer_status == 'counter' %}${{ "{:,.0f}".format(counter_offer) }}
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      {% if offer_status == 'counter' %}
+      <div class="loan-compare-diff">
+        ▼ {{ "{:,.0f}".format(requested_amount - counter_offer) }} USD ({{ "%.0f"|format((1 - counter_offer/requested_amount)*100) }}% thấp hơn yêu cầu)
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="credit-grid">
+      <div class="credit-metric highlight">
+        <div class="credit-metric-icon">📈</div>
+        <div class="credit-metric-label">Lãi suất đề xuất</div>
+        <div class="credit-metric-value rate-color">{{ interest_rate }}%<span class="credit-unit">/năm</span></div>
+        <div class="credit-metric-hint">Cơ bản 10% + phần bù {{ risk_spread }}%</div>
+      </div>
+
+      <div class="credit-metric">
+        <div class="credit-metric-icon">⚖️</div>
+        <div class="credit-metric-label">Risk Spread</div>
+        <div class="credit-metric-value">{{ risk_spread }}%<span class="credit-unit">/năm</span></div>
+        <div class="credit-metric-hint">PD × LGD ÷ (1 − PD)</div>
+      </div>
+
+      <div class="credit-metric">
+        <div class="credit-metric-icon">📊</div>
+        <div class="credit-metric-label">EV Factor (hệ số an toàn)</div>
+        <div class="credit-metric-value">{{ ev_factor }}%</div>
+        <div class="credit-metric-hint">Hạn mức an toàn / Hạn mức tối đa</div>
+      </div>
+
+      {% if net_ev != 0 %}
+      <div class="credit-metric">
+        <div class="credit-metric-icon">💰</div>
+        <div class="credit-metric-label">Lãi kỳ vọng</div>
+        <div class="credit-metric-value" style="color:var(--green)">${{ "{:,.0f}".format(expected_interest) }}</div>
+        <div class="credit-metric-hint">r × (1−PD) × Khoản vay</div>
+      </div>
+
+      <div class="credit-metric">
+        <div class="credit-metric-icon">📉</div>
+        <div class="credit-metric-label">Tổn thất kỳ vọng (EL)</div>
+        <div class="credit-metric-value" style="color:var(--red)">${{ "{:,.0f}".format(expected_loss) }}</div>
+        <div class="credit-metric-hint">LGD × PD × Khoản vay</div>
+      </div>
+
+      <div class="credit-metric highlight">
+        <div class="credit-metric-icon">🎯</div>
+        <div class="credit-metric-label">Lợi nhuận kỳ vọng ròng</div>
+        <div class="credit-metric-value" style="color:{% if net_ev > 0 %}var(--green){% else %}var(--red){% endif %}">${{ "{:,.0f}".format(net_ev) }}</div>
+        <div class="credit-metric-hint">Lãi kỳ vọng − EL</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="credit-formula">
+      <span class="formula-label">Lãi suất:</span>
+      r = 10% + {{ "%.1f"|format(probability) }}% × 45% ÷ (1 − {{ "%.1f"|format(probability) }}%) = <strong style="color:var(--blue)">{{ interest_rate }}%</strong>
+      &nbsp;·&nbsp;
+      <span class="formula-label">EV factor:</span>
+      (r×(1−PD) − LGD×PD) ÷ 10% = <strong style="color:var(--green)">{{ ev_factor }}%</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  {% elif table %}
+  <!-- ── BATCH RESULT ── -->
+  {% set total = table | length %}
+  {% set approved = table | selectattr('decision','equalto','Approve') | list | length %}
+  {% set rejected = total - approved %}
+
+  <div class="stats-row">
+    <div class="stat"><div class="stat-num b">{{ total }}</div><div class="stat-lbl">Tổng hồ sơ</div></div>
+    <div class="stat"><div class="stat-num g">{{ approved }}</div><div class="stat-lbl">✅ Approve</div></div>
+    <div class="stat"><div class="stat-num r">{{ rejected }}</div><div class="stat-lbl">❌ Reject</div></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-head-bar">
+      <h3>📋 Kết quả chi tiết ({{ total }} hồ sơ)</h3>
+      {% if threshold %}
+      <span class="threshold-badge">⚖️ Ngưỡng: {{ threshold }}%</span>
+      {% endif %}
+    </div>
+    <div style="padding:8px 20px 10px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);background:#fafbfd">
+      💡 Nhấn vào từng hàng để xem <strong>điều khoản tín dụng</strong> và <strong>giải thích SHAP</strong>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Quyết định</th>
+            <th>Xác suất vỡ nợ</th>
+            <th>Mức rủi ro</th>
+            <th>Yêu cầu → Đề xuất</th>
+            <th>Lãi suất</th>
+            <th>Tier</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in table %}
+          {% set idx = loop.index %}
+          <tr class="acc-row" onclick="toggleAcc({{ idx }})">
+            <td>{{ idx }}</td>
+            <td>
+              <span class="badge badge-{{ row.decision | lower }}">
+                {{ '✅' if row.decision == 'Approve' else '❌' }} {{ row.decision }}
+              </span>
+            </td>
+            <td style="color:{% if row.default_probability < 0.2 %}#059669{% elif row.default_probability < 0.4375 %}#d97706{% else %}#dc2626{% endif %};font-weight:600">
+              {{ "%.1f"|format(row.default_probability * 100) }}%
+            </td>
+            <td>
+              {% set p = row.default_probability %}
+              {% if p < 0.2 %}
+                <span class="badge badge-low">🟢 Thấp</span>
+              {% elif p < 0.4375 %}
+                <span class="badge badge-medium">🟡 Trung bình</span>
+              {% else %}
+                <span class="badge badge-high">🔴 Cao</span>
+              {% endif %}
+            </td>
+            <td style="font-family:var(--mono);font-size:11px;line-height:1.6">
+              {% if row.requested_amount %}
+                <span style="color:var(--muted)">${{ "{:,.0f}".format(row.requested_amount) }}</span><br>
+                {% if row.offer_status == 'full' %}<span style="color:var(--green);font-weight:600">✅ Duyệt đủ</span>
+                {% elif row.offer_status == 'counter' %}<span style="color:var(--amber);font-weight:600">⚠️ ${{ "{:,.0f}".format(row.counter_offer) }}</span>
+                {% else %}<span style="color:var(--red);font-weight:600">❌ Từ chối</span>{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td style="font-family:var(--mono);font-size:12px;color:var(--blue);font-weight:600">
+              {{ row.interest_rate }}%
+            </td>
+            <td>
+              {% set tier_colors = {"Ưu tiên":"badge-low","Tiêu chuẩn":"badge-medium","Thận trọng":"badge-medium","Từ chối":"badge-high"} %}
+              <span class="badge {{ tier_colors.get(row.credit_tier, '') }}">{{ row.credit_tier }}</span>
+            </td>
+            <td style="text-align:center"><i class="acc-chevron">▶</i></td>
+          </tr>
+
+          <!-- ── Accordion detail ── -->
+          <tr class="acc-detail" id="acc-{{ idx }}">
+            <td colspan="8">
+              <div class="acc-inner">
+
+                <!-- Credit metrics -->
+                <div class="acc-metrics-grid">
+                  <div class="acc-metric">
+                    <div class="acc-metric-label">📋 Yêu cầu / Đề xuất</div>
+                    <div class="acc-metric-value" style="font-size:12px;line-height:1.5">
+                      {% if row.requested_amount %}
+                        <span style="color:var(--muted)">Xin: ${{ "{:,.0f}".format(row.requested_amount) }}</span><br>
+                        {% if row.offer_status == 'full' %}<span style="color:var(--green)">✅ Duyệt đủ</span>
+                        {% elif row.offer_status == 'counter' %}<span style="color:var(--amber)">⚠️ Counter: ${{ "{:,.0f}".format(row.counter_offer) }}</span>
+                        {% else %}<span style="color:var(--red)">❌ Từ chối</span>{% endif %}
+                      {% else %}—{% endif %}
+                    </div>
+                  </div>
+                  <div class="acc-metric">
+                    <div class="acc-metric-label">📈 Lãi suất</div>
+                    <div class="acc-metric-value" style="color:var(--blue)">{{ row.interest_rate }}%<span style="font-size:11px;font-weight:400;color:var(--muted)">/năm</span></div>
+                    <div class="acc-metric-hint">Cơ bản 10% + {{ row.risk_spread }}%</div>
+                  </div>
+                  <div class="acc-metric">
+                    <div class="acc-metric-label">⚖️ Risk Spread</div>
+                    <div class="acc-metric-value">{{ row.risk_spread }}%</div>
+                    <div class="acc-metric-hint">PD×LGD÷(1−PD)</div>
+                  </div>
+                  <div class="acc-metric">
+                    <div class="acc-metric-label">💰 Lãi kỳ vọng</div>
+                    <div class="acc-metric-value" style="color:var(--green)">${{ "{:,.0f}".format(row.expected_interest) }}</div>
+                    <div class="acc-metric-hint">r × (1−PD) × Hạn mức</div>
+                  </div>
+                  <div class="acc-metric">
+                    <div class="acc-metric-label">📉 Tổn thất kỳ vọng</div>
+                    <div class="acc-metric-value" style="color:var(--red)">${{ "{:,.0f}".format(row.expected_loss) }}</div>
+                    <div class="acc-metric-hint">LGD × PD × Hạn mức</div>
+                  </div>
+                  <div class="acc-metric" style="background:#f0fdf4;border-color:#6ee7b7">
+                    <div class="acc-metric-label">🎯 Lợi nhuận ròng</div>
+                    <div class="acc-metric-value" style="color:{% if row.net_ev > 0 %}var(--green){% else %}var(--red){% endif %}">${{ "{:,.0f}".format(row.net_ev) }}</div>
+                    <div class="acc-metric-hint">Interest − EL</div>
+                  </div>
+                </div>
+
+                <!-- SHAP mini panel -->
+                {% if row.shap_explain %}
+                <div class="shap-mini">
+                  <div class="shap-mini-title">🔍 Giải thích SHAP — Base rate: {{ row.shap_explain.base_value }}%</div>
+                  <div class="shap-mini-cols">
+                    <div>
+                      <div class="shap-mini-col-title risk">⚠️ Yếu tố rủi ro</div>
+                      {% for item in row.shap_explain.risk_factors %}
+                      <div class="shap-mini-row">
+                        <div class="shap-mini-label">{{ item.label }}</div>
+                        <div class="shap-mini-track">
+                          <div class="shap-mini-fill risk" style="width:{{ (item.shap_val / row.shap_explain.max_abs * 100)|round(1) }}%"></div>
+                        </div>
+                        <div class="shap-mini-pct risk">+{{ item.pct }}%</div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                    <div>
+                      <div class="shap-mini-col-title safe">✅ Điểm mạnh</div>
+                      {% for item in row.shap_explain.strengths %}
+                      <div class="shap-mini-row">
+                        <div class="shap-mini-label">{{ item.label }}</div>
+                        <div class="shap-mini-track">
+                          <div class="shap-mini-fill safe" style="width:{{ (item.shap_val|abs / row.shap_explain.max_abs * 100)|round(1) }}%"></div>
+                        </div>
+                        <div class="shap-mini-pct safe">−{{ item.pct }}%</div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% endif %}
+
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+// Animate probability bar on load
+window.addEventListener('load', () => {
+  const bar = document.getElementById('bar-fill');
+  if (bar) {
+    const w = bar.style.width;
+    bar.style.width = '0%';
+    setTimeout(() => bar.style.width = w, 100);
+  }
+
+  // Animate SHAP bars
+  setTimeout(() => {
+    document.querySelectorAll('.shap-animated').forEach(el => {
+      el.style.width = el.dataset.width + '%';
+    });
+  }, 200);
+});
+
+// Accordion toggle for CSV rows
+function toggleAcc(idx) {
+  const detail = document.getElementById('acc-' + idx);
+  const row    = detail.previousElementSibling;
+  const isOpen = detail.classList.contains('open');
+  document.querySelectorAll('.acc-detail.open').forEach(el => {
+    el.classList.remove('open');
+    el.previousElementSibling.classList.remove('expanded');
+  });
+  if (!isOpen) {
+    detail.classList.add('open');
+    row.classList.add('expanded');
+    detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+</script>
+</body>
+</html>
